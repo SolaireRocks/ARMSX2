@@ -102,8 +102,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG=armsx2-custom-latest
+          # Fixed asset name so the download link never changes:
+          # https://github.com/<repo>/releases/download/armsx2-custom-latest/ARMSX2-Custom.apk
+          # (the build version is in the release title; the workflow artifact keeps the versioned name).
+          cp app/build/outputs/apk/custom/*.apk "$RUNNER_TEMP/ARMSX2-Custom.apk"
           gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --prerelease --target "$GITHUB_SHA" \
             --title "ARMSX2 Custom ($VN)" \
             --notes "Built from ${GITHUB_SHA} on branch ${GITHUB_REF_NAME} (run #${GITHUB_RUN_NUMBER})." \
-            app/build/outputs/apk/custom/*.apk
+            "$RUNNER_TEMP/ARMSX2-Custom.apk"
