@@ -1270,6 +1270,10 @@ struct Pcsx2Config
 
 		u32 StandardVolume = 100;
 		u32 FastForwardVolume = 100;
+		// Volume while the frame limiter is off (Unlimited) but fast-forward is not engaged.
+		// Only used by frontends that report fast-forward explicitly (SPU2::SetFastForwardEngaged,
+		// the Android app); elsewhere Unlimited keeps using FastForwardVolume as before.
+		u32 UnlimitedVolume = 100;
 		bool OutputMuted = false;
 		// Low-end Android lever: skip the SPU2 reverb pipeline in MixCore. Off by default.
 		bool LightweightMode = false;

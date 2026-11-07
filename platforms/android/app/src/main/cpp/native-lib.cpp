@@ -1814,6 +1814,10 @@ Java_kr_co_iefriends_pcsx2_NativeApp_speedhackLimitermode(JNIEnv *env, jclass cl
                                                           jint p_value) {
     // Enum values match LimiterModeType (Config.h:267):
     //   0 Nominal, 1 Turbo, 2 Slomo, 3 Unlimited.
+    // Plus an Android-only 4: Unlimited reached by FAST-FORWARD (the FF speed set to
+    // Unlimited), as opposed to 3, the frame limiter switched off. The VM runs the same,
+    // but SPU2 plays the fast-forward volume for 1/4 and its own Unlimited volume for 3,
+    // so turning down the fast-forward volume no longer quiets a game run limiter-off.
     // Called from Android UI/input threads. SetLimiterMode updates VM timing state and
     // notifies MTGS/SPU2, so it must run on the CPU thread. Queue the validity check too:
     // the VM may stop between this JNI call and execution of the queued work.
@@ -1823,9 +1827,11 @@ Java_kr_co_iefriends_pcsx2_NativeApp_speedhackLimitermode(JNIEnv *env, jclass cl
         case 1: mode = LimiterModeType::Turbo; break;
         case 2: mode = LimiterModeType::Slomo; break;
         case 3: mode = LimiterModeType::Unlimited; break;
+        case 4: mode = LimiterModeType::Unlimited; break;
         default: return;
     }
-    Host::RunOnCPUThread([mode]() mutable {
+    const bool fast_forward = (p_value == 1 || p_value == 4);
+    Host::RunOnCPUThread([mode, fast_forward]() mutable {
         if (!VMManager::HasValidVM())
             return;
 
@@ -1836,6 +1842,7 @@ Java_kr_co_iefriends_pcsx2_NativeApp_speedhackLimitermode(JNIEnv *env, jclass cl
         if (mode == LimiterModeType::Slomo && Achievements::IsHardcoreModeActive())
             mode = LimiterModeType::Nominal;
 
+        SPU2::SetFastForwardEngaged(fast_forward);
         VMManager::SetLimiterMode(mode);
         // Suspend the Android present-FPS cap while fast-forwarding (Turbo) so the
         // speed-up is visible instead of being held at the cap. Unlimited (the
@@ -2020,7 +2027,9 @@ Java_kr_co_iefriends_pcsx2_NativeApp_setAudioVolume(JNIEnv *env, jclass clazz,
     const int vol = std::clamp(static_cast<int>(p_volume), 0, 200);
     Host::SetBaseIntSettingValue("SPU2/Output", "StandardVolume", vol);
     EmuConfig.SPU2.StandardVolume = vol;
-    SPU2::SetOutputVolume(static_cast<u32>(vol));
+    // The normal-speed volume specifically: SetOutputVolume writes whichever volume is
+    // playing, so changing Volume while fast-forwarding or limiter-off overwrote that one.
+    SPU2::SetStandardVolume(static_cast<u32>(vol));
 }
 
 extern "C"
@@ -4188,6 +4197,9 @@ Java_kr_co_iefriends_pcsx2_NativeApp_runVMThread(JNIEnv *env, jclass clazz,
         // VMManager::SetDefaultSettings's behaviour.
         const bool frame_limit_on = Host::GetBaseBoolSettingValue(
             "EmuCore/GS", "FrameLimitEnable", true);
+        // A fresh game never starts fast-forwarding; this also tells SPU2 the frontend
+        // reports fast-forward itself, so a limiter-off boot plays the Unlimited volume.
+        SPU2::SetFastForwardEngaged(false);
         VMManager::SetLimiterMode(frame_limit_on ? LimiterModeType::Nominal
                                                  : LimiterModeType::Unlimited);
         // The present-cap-suspend flag is process-global (it lives in GS.cpp), so a

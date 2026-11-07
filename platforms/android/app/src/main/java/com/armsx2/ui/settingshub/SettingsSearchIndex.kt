@@ -159,6 +159,7 @@ private val BASE_SEARCH_INDEX: List<SettingsSearchEntry> = listOf(
     SettingsSearchEntry("audio.buffer.label", true, SettingsCategory.Audio),
     SettingsSearchEntry("audio.outputLatency.label", true, SettingsCategory.Audio),
     SettingsSearchEntry("audio.fastForwardVolume.label", true, SettingsCategory.Audio),
+    SettingsSearchEntry("audio.unlimitedVolume.label", true, SettingsCategory.Audio),
     SettingsSearchEntry("pad.rumble.label", true, SettingsCategory.Controls, listOf("pad.section.playerRumble")),
     SettingsSearchEntry("pad.gyro.mode.label", true, SettingsCategory.Controls, listOf("pad.gyro.section")),
     SettingsSearchEntry("pad.gyro.sensitivity.label", true, SettingsCategory.Controls, listOf("pad.gyro.section")),

@@ -426,7 +426,9 @@ open class MainActivityRuntime : ComponentActivity() {
         // EmulationSpeed.TurboScalar (2.0x) and reporters consistently saw no speed-up from
         // it, while "frame limit off" — which is this same mode 3 — visibly fast-forwarded.
         // Use the path that demonstrably works instead of shipping a second one that doesn't.
-        const val FF_LIMITER_MODE = 3
+        // 4, not 3: the native side runs it as Unlimited too, but plays the fast-forward volume
+        // for it, where 3 (frame limiter off) has its own volume.
+        const val FF_LIMITER_MODE = 4
 
         /** How long [waitForDataRoot] keeps checking an unreachable data folder before asking:
          *  10 tries, one second apart. */
@@ -447,11 +449,41 @@ open class MainActivityRuntime : ComponentActivity() {
             runCatching { prefs.edit().putInt(KEY_FF_SPEED, v.coerceIn(2, FF_SPEED_UNLIMITED)).apply() }
         }
 
-        /** Limiter mode for engaging fast-forward, honouring the FF-speed slider. Unlimited at the
-         *  top (mode 3); otherwise push the Turbo scalar and return Turbo (mode 1). Call only when
-         *  actually engaging FF — it has the side effect of setting the scalar. */
+        // The extra on-screen fast-forward buttons (FAST_FORWARD_2 / _3), each with a speed of
+        // its own on the same 2..10x / Unlimited scale. Slot 1 is the main FF speed above, which
+        // the hotkeys and the original button use.
+        const val FF_SLOT_COUNT = 3
+        private val FF_SLOT_DEFAULTS = intArrayOf(0, 0, 2, 4)
+        private fun ffSlotKey(slot: Int) = "ff.speed$slot"
+
+        fun fastForwardSpeedFor(slot: Int): Int {
+            if (slot <= 1) return fastForwardSpeed()
+            val def = FF_SLOT_DEFAULTS[slot.coerceAtMost(FF_SLOT_COUNT)]
+            return runCatching { prefs.getInt(ffSlotKey(slot), def) }
+                .getOrDefault(def).coerceIn(2, FF_SPEED_UNLIMITED)
+        }
+
+        /** "3×", or "∞" at the Unlimited top of the scale: the on-screen buttons' caption and the toast. */
+        fun ffSpeedLabel(speed: Int): String =
+            if (speed >= FF_SPEED_UNLIMITED) "∞" else "${speed}×"
+
+        fun setFastForwardSpeedFor(slot: Int, v: Int) {
+            if (slot <= 1) return setFastForwardSpeed(v)
+            runCatching { prefs.edit().putInt(ffSlotKey(slot), v.coerceIn(2, FF_SPEED_UNLIMITED)).apply() }
+        }
+
+        /** Which fast-forward speed the latch runs at (1..[FF_SLOT_COUNT]). The hotkeys and the
+         *  main button use 1; the extra buttons pick 2 and 3. */
+        @Volatile var activeFfSlot = 1
+
+        /** The slot whose button should show as lit: the active slot while the latch is on, else 0. */
+        val fastForwardUiSlot = androidx.compose.runtime.mutableIntStateOf(0)
+
+        /** Limiter mode for engaging fast-forward, honouring the active slot's speed. Unlimited at
+         *  the top (mode 4); otherwise push the Turbo scalar and return Turbo (mode 1). Call only
+         *  when actually engaging FF — it has the side effect of setting the scalar. */
         fun ffLimiterMode(): Int {
-            val s = fastForwardSpeed()
+            val s = fastForwardSpeedFor(activeFfSlot)
             if (s >= FF_SPEED_UNLIMITED) return FF_LIMITER_MODE
             runCatching { NativeApp.setTurboScalar(s.toFloat()) }
             return 1 // Turbo, at the scalar just pushed
@@ -461,6 +493,10 @@ open class MainActivityRuntime : ComponentActivity() {
         // fast-forward and the base limiter mode (vs. the hold variant which is momentary).
         // Reset to false whenever a game starts.
         @Volatile var fastForwardToggleActive = false
+            set(value) {
+                field = value
+                fastForwardUiSlot.intValue = if (value) activeFfSlot else 0
+            }
 
         /** Read-only view of the fast-forward latch, for UI that only needs to DISPLAY it (the
          *  second-display panel shows a ▶▶ marker while carrying the OSD). */
@@ -1754,6 +1790,22 @@ open class MainActivityRuntime : ComponentActivity() {
         fun autosaveKeep(): Int =
             runCatching { prefs.getInt(KEY_AUTOSAVE_KEEP, AUTOSAVE_KEEP_DEFAULT) }
                 .getOrDefault(AUTOSAVE_KEEP_DEFAULT).coerceIn(1, AUTOSAVE_KEEP_MAX)
+
+        /** Rolling saves (save state picker): the on-screen SAVE button writes over the oldest of
+         *  the first [rollingSaveSlots] numbered slots, an empty one first, instead of always the
+         *  selected slot, so a bad save never takes the only copy with it. */
+        const val KEY_ROLLING_SAVES = "rollingSaves"
+        const val KEY_ROLLING_SAVE_SLOTS = "rollingSaveSlots"
+        const val ROLLING_SAVE_SLOTS_DEFAULT = 3
+        const val ROLLING_SAVE_SLOTS_MIN = 2
+        const val ROLLING_SAVE_SLOTS_MAX = 10
+
+        fun rollingSavesEnabled(): Boolean =
+            runCatching { prefs.getBoolean(KEY_ROLLING_SAVES, false) }.getOrDefault(false)
+
+        fun rollingSaveSlots(): Int =
+            runCatching { prefs.getInt(KEY_ROLLING_SAVE_SLOTS, ROLLING_SAVE_SLOTS_DEFAULT) }
+                .getOrDefault(ROLLING_SAVE_SLOTS_DEFAULT).coerceIn(ROLLING_SAVE_SLOTS_MIN, ROLLING_SAVE_SLOTS_MAX)
 
         /** How long a quick save or load waits for the game to finish writing its memory card: the
          *  card counts as busy for 300 frames, five seconds, after the last write (quickState). */
@@ -3388,6 +3440,7 @@ open class MainActivityRuntime : ComponentActivity() {
             .takeUnless { it == KeyEvent.KEYCODE_UNKNOWN }
         fastForwardHold.start(mainKey, modifier)
         fastForwardToggleActive = false
+        activeFfSlot = 1 // the hold hotkey runs the main fast-forward speed
         runCatching { NativeApp.speedhackLimitermode(ffLimiterMode()) }
     }
 
@@ -4258,13 +4311,20 @@ open class MainActivityRuntime : ComponentActivity() {
         hotkeyToast("Motion recentered")
     }
 
-    fun toggleFastForward() {
-        fastForwardToggleActive = !fastForwardToggleActive
-        val on = fastForwardToggleActive
+    /** [slot] picks the speed: 1 = the main Fast-Forward Speed, 2 and 3 = the extra on-screen
+     *  buttons. Pressing a different speed's button while fast-forward is on switches to that
+     *  speed; pressing the one that is running turns fast-forward off. 0 (the hotkeys, the
+     *  second-screen tile) is a plain on/off: off whatever speed runs, else on at the main speed. */
+    fun toggleFastForward(slot: Int = 0) {
+        val s = if (slot <= 0) (if (fastForwardToggleActive) activeFfSlot else 1)
+            else slot.coerceAtMost(FF_SLOT_COUNT)
+        val on = !(fastForwardToggleActive && activeFfSlot == s)
+        activeFfSlot = s
+        fastForwardToggleActive = on
         // Fast-forward supersedes an active slow-down latch (mutually exclusive).
         if (on) slowDownToggleActive = false
         runCatching { NativeApp.speedhackLimitermode(if (on) ffLimiterMode() else baseLimiterMode()) }
-        hotkeyToast(if (on) "Fast Forward ON" else "Fast Forward OFF")
+        hotkeyToast(if (on) "Fast Forward ON (${ffSpeedLabel(fastForwardSpeedFor(s))})" else "Fast Forward OFF")
     }
 
     /** Toggle slow motion (native LimiterModeType::Slomo, ~50% speed). BLOCKED in
@@ -4318,6 +4378,29 @@ open class MainActivityRuntime : ComponentActivity() {
 
     fun saveState() = quickState(currentSaveSlot.value, saving = true)
 
+    /**
+     * The on-screen SAVE button. With Rolling Saves on, it writes over the oldest of the first
+     * [rollingSaveSlots] slots (an empty one before any used one) and, once the save lands, makes
+     * that the selected slot, so the LOAD button brings back the newest rolling save. Off, it is
+     * [saveState]: the selected slot, as before.
+     */
+    fun saveStateFromButton() {
+        if (!rollingSavesEnabled()) return saveState()
+        val slot = runCatching { oldestRollingSlot(rollingSaveSlots()) }.getOrDefault(currentSaveSlot.value)
+        quickState(slot, saving = true, onSaved = { currentSaveSlot.value = slot })
+    }
+
+    /** The slot among 0 until [count] to write next: the first empty one, else the least recently
+     *  written. Same per-slot files the save state picker reads its dates from. */
+    private fun oldestRollingSlot(count: Int): Int {
+        val written = (0 until count).map { slot ->
+            val path = NativeApp.getGamePathSlot(slot)
+            val f = if (path.isNullOrBlank()) null else java.io.File(path)
+            if (f != null && f.isFile) f.lastModified().coerceAtLeast(1L) else 0L
+        }
+        return written.indices.minByOrNull { written[it] } ?: 0
+    }
+
     fun loadState(onLoaded: (() -> Unit)? = null) = quickState(currentSaveSlot.value, saving = false, onLoaded)
 
     private val quickStateRunning = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -4334,7 +4417,12 @@ open class MainActivityRuntime : ComponentActivity() {
      * the main thread once a load is over. Whether the game runs is taken at the press: a refused
      * load parks it for a moment itself.
      */
-    private fun quickState(slot: Int, saving: Boolean, onLoaded: (() -> Unit)? = null) {
+    private fun quickState(
+        slot: Int,
+        saving: Boolean,
+        onLoaded: (() -> Unit)? = null,
+        onSaved: (() -> Unit)? = null,
+    ) {
         if (blockedByHardcore()) return
         if (!quickStateRunning.compareAndSet(false, true)) return
         val running = eState.value == EmuState.RUNNING
@@ -4359,6 +4447,8 @@ open class MainActivityRuntime : ComponentActivity() {
                         else -> "savestate.error.memcardBusy"
                     }
                     runOnUiThread { com.armsx2.ui.WelcomeBanner.show(com.armsx2.i18n.I18n.get(key)) }
+                } else if (saving) {
+                    onSaved?.let { cb -> runOnUiThread { cb() } }
                 }
             } finally {
                 quickStateRunning.set(false)
@@ -5779,12 +5869,8 @@ open class MainActivityRuntime : ComponentActivity() {
                     if (on) "Texture dumping ON" else "Texture dumping OFF",
                     android.widget.Toast.LENGTH_SHORT).show()
             }
-            ControllerMappings.SysHotkey.FAST_FORWARD_TOGGLE -> {
-                fastForwardToggleActive = !fastForwardToggleActive
-                val on = fastForwardToggleActive
-                runCatching { NativeApp.speedhackLimitermode(if (on) ffLimiterMode() else baseLimiterMode()) }
-                hotkeyToast(if (on) "Fast Forward ON" else "Fast Forward OFF")
-            }
+            // Same plain on/off toggle as the key path.
+            ControllerMappings.SysHotkey.FAST_FORWARD_TOGGLE -> toggleFastForward()
             ControllerMappings.SysHotkey.GYRO_TOGGLE -> toggleGyro()
             ControllerMappings.SysHotkey.PRESSURE_MOD_TOGGLE -> togglePressureModifier()
             // GYRO_HOLD needs key up/down edges, which this edge-triggered path (stick

@@ -36,6 +36,14 @@ u32 GetOutputVolume();
 /// Directly updates the output volume without going through the configuration.
 void SetOutputVolume(u32 volume);
 
+/// Sets the normal-speed volume, whichever volume is currently active.
+void SetStandardVolume(u32 volume);
+
+/// Frontend report of whether fast-forward is engaged. Once a frontend calls this, the
+/// fast-forward volume applies only while it is engaged, and the frame-limiter-off
+/// (Unlimited) state uses its own UnlimitedVolume instead of sharing the fast-forward one.
+void SetFastForwardEngaged(bool engaged);
+
 /// Sets up muting and unmuting and reports success or failure.
 bool SetOutputMuted(const bool muted);
 

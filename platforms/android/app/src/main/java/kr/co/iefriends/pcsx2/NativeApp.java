@@ -1013,9 +1013,11 @@ public class NativeApp {
 
 	public static native void setAspectRatio(int type);
 	public static native void setFmvAspectRatio(int type);
+	/** 0 Nominal, 1 Turbo, 2 Slomo, 3 Unlimited (frame limiter off), 4 Unlimited fast-forward.
+	 *  1 and 4 play the fast-forward volume; 3 plays its own speed-limit-off volume. */
 	public static native void speedhackLimitermode(int value);
 	/** Fast-forward speed multiplier (Turbo scalar, 0.05-10.0). Set before engaging
-	 *  Turbo (speedhackLimitermode(1)); the FF-speed slider uses Unlimited (mode 3) at its top. */
+	 *  Turbo (speedhackLimitermode(1)); the FF-speed slider uses Unlimited (mode 4) at its top. */
 	public static native void setTurboScalar(float scalar);
 	/** Custom speed / FPS cap as a percent of native (100 = full speed).
 	 *  Applies live to the running VM's frame pacer. */

@@ -316,6 +316,8 @@ private fun AutoOptions(modifier: Modifier = Modifier) {
         mutableIntStateOf(prefs.getInt(MainActivityRuntime.KEY_AUTOSAVE_INTERVAL_MIN, 0))
     }
     var keep by remember { mutableIntStateOf(MainActivityRuntime.autosaveKeep()) }
+    var rolling by remember { mutableStateOf(MainActivityRuntime.rollingSavesEnabled()) }
+    var rollingSlots by remember { mutableIntStateOf(MainActivityRuntime.rollingSaveSlots()) }
     // str() is @Composable; valueFormatter is a plain lambda, so resolve up-front.
     val offLabel = str("savestate.autoSaveInterval.off")
     val everyLabel = str("savestate.autoSaveInterval.every")
@@ -369,6 +371,32 @@ private fun AutoOptions(modifier: Modifier = Modifier) {
                     prefs.edit().putInt(MainActivityRuntime.KEY_AUTOSAVE_KEEP, value).apply()
                 },
             )
+            Spacer(Modifier.height(6.dp))
+            // Rolling saves for the on-screen SAVE button: it cycles through slots 1..N, always
+            // writing over the oldest, so the last few saves are all kept.
+            ToggleRow("save.opt.rolling", str("savestate.rolling.label"), rolling) { value ->
+                rolling = value
+                prefs.edit().putBoolean(MainActivityRuntime.KEY_ROLLING_SAVES, value).apply()
+            }
+            if (rolling) {
+                Spacer(Modifier.height(6.dp))
+                IntSliderRow(
+                    label = str("savestate.rollingSlots.label"),
+                    value = rollingSlots,
+                    min = MainActivityRuntime.ROLLING_SAVE_SLOTS_MIN,
+                    max = MainActivityRuntime.ROLLING_SAVE_SLOTS_MAX,
+                    description = str("savestate.rollingSlots.description"),
+                    valueFormatter = { it.toString() },
+                    onReset = if (rollingSlots == MainActivityRuntime.ROLLING_SAVE_SLOTS_DEFAULT) null else ({
+                        rollingSlots = MainActivityRuntime.ROLLING_SAVE_SLOTS_DEFAULT
+                        prefs.edit().putInt(MainActivityRuntime.KEY_ROLLING_SAVE_SLOTS, rollingSlots).apply()
+                    }),
+                    onChange = { value ->
+                        rollingSlots = value
+                        prefs.edit().putInt(MainActivityRuntime.KEY_ROLLING_SAVE_SLOTS, value).apply()
+                    },
+                )
+            }
         }
     }
 }

@@ -1570,6 +1570,10 @@ enum class TouchButtonId(val label: String, val keycode: Int, val kind: Kind) {
     // as the FAST_FORWARD_TOGGLE hotkey. Opt-in: disabled in the default layout.
     // Rendered by FastForwardWidget.
     FAST_FORWARD("▶▶", 0, Kind.FASTFORWARD),
+    // Two more fast-forward toggles, each at its own speed (Fast-Forward Speed (Button 2/3) in
+    // the in-game menu, under Fast-Forward Speed). Same widget; the slot comes from ffSlotFor.
+    FAST_FORWARD_2("▶▶2", 0, Kind.FASTFORWARD),
+    FAST_FORWARD_3("▶▶3", 0, Kind.FASTFORWARD),
 
     // On-screen quick save-state / load-state buttons (to the active slot). Emit no
     // PS2 keycode; tapping calls MainActivityRuntime.saveState() / MainActivityRuntime.loadState() — the same actions
@@ -1733,6 +1737,8 @@ data class TouchLayout(val buttons: List<TouchButtonCfg>) {
                 // Opt-in extras keep the landscape default's disabled state and park in the gap
                 // between the render and the shoulders, where they are grabbable in the editor.
                 TouchButtonCfg(TouchButtonId.FAST_FORWARD, 0.30f, 0.36f, 44f, enabled = false),
+                TouchButtonCfg(TouchButtonId.FAST_FORWARD_2, 0.72f, 0.36f, 44f, enabled = false),
+                TouchButtonCfg(TouchButtonId.FAST_FORWARD_3, 0.80f, 0.36f, 44f, enabled = false),
                 TouchButtonCfg(TouchButtonId.MACRO1, 0.40f, 0.36f, 42f, enabled = false),
                 TouchButtonCfg(TouchButtonId.MACRO2, 0.48f, 0.36f, 42f, enabled = false),
                 TouchButtonCfg(TouchButtonId.MACRO3, 0.56f, 0.36f, 42f, enabled = false),
@@ -1801,6 +1807,9 @@ data class TouchLayout(val buttons: List<TouchButtonCfg>) {
                 TouchButtonCfg(TouchButtonId.SAVE_STATE, 0.30f, 0.54f, 44f, enabled = false),
                 TouchButtonCfg(TouchButtonId.LOAD_STATE, 0.38f, 0.54f, 44f, enabled = false),
                 TouchButtonCfg(TouchButtonId.SCREENSHOT, 0.46f, 0.54f, 44f, enabled = false),
+                // The extra fast-forward speeds (opt-in), on the same row.
+                TouchButtonCfg(TouchButtonId.FAST_FORWARD_2, 0.54f, 0.54f, 44f, enabled = false),
+                TouchButtonCfg(TouchButtonId.FAST_FORWARD_3, 0.62f, 0.54f, 44f, enabled = false),
                 // Extra analog button, parked directly above the D-PAD (0.10, 0.55) — not above the
                 // left stick, which is where it first went. The button is for sprint/jump held while
                 // you keep moving, so it belongs above whichever control the thumb is already on,

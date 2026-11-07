@@ -260,6 +260,10 @@ data class AudioSettings(
     val audioOutputLatencyMs: Int = 20,
     /** SPU2/Output/FastForwardVolume — output volume % while fast-forwarding. */
     val audioFastForwardVolume: Int = 100,
+    /** SPU2/Output/UnlimitedVolume — output volume % while the frame limiter (speed limit) is
+     *  off and fast-forward is not engaged. Separate from [audioFastForwardVolume], which used to
+     *  apply here too, so quieting fast-forward no longer quiets a game played limiter-off. */
+    val audioUnlimitedVolume: Int = 100,
     /** SPU2/NeonReverbSIMD — opt-in NEON reverb FIR on ARM64. Frees CPU on
      *  CPU-bound devices; default off uses the scalar reference (unchanged
      *  audio). Applied on the next game boot/reset. */
@@ -1035,6 +1039,7 @@ data class Settings(
         put("SPU2/Output", "BufferMS", "int", audio.audioBufferMs.coerceIn(10, 200).toString())
         put("SPU2/Output", "OutputLatencyMS", "int", audio.audioOutputLatencyMs.coerceIn(5, 200).toString())
         put("SPU2/Output", "FastForwardVolume", "int", audio.audioFastForwardVolume.coerceIn(0, 200).toString())
+        put("SPU2/Output", "UnlimitedVolume", "int", audio.audioUnlimitedVolume.coerceIn(0, 200).toString())
         // Opt-in NEON reverb FIR (ARM64). Read by SPU2::InternalReset on the
         // next game boot; default off = scalar reference (unchanged audio).
         put("SPU2", "NeonReverbSIMD", "bool", audio.spu2NeonReverb.toString())
@@ -1339,6 +1344,7 @@ data class Settings(
                 audioBufferMs = intAt("SPU2/Output/BufferMS") ?: this.audio.audioBufferMs,
                 audioOutputLatencyMs = intAt("SPU2/Output/OutputLatencyMS") ?: this.audio.audioOutputLatencyMs,
                 audioFastForwardVolume = intAt("SPU2/Output/FastForwardVolume") ?: this.audio.audioFastForwardVolume,
+                audioUnlimitedVolume = intAt("SPU2/Output/UnlimitedVolume") ?: this.audio.audioUnlimitedVolume,
                 spu2NeonReverb = boolAt("SPU2/NeonReverbSIMD") ?: this.audio.spu2NeonReverb,
                 audioOpenSLES = boolAt("SPU2/Output/AndroidOpenSLES") ?: this.audio.audioOpenSLES,
                 audioRecordingCompatible = boolAt("SPU2/Output/AndroidRecordingCompatible") ?: this.audio.audioRecordingCompatible,
@@ -2063,6 +2069,7 @@ data class Settings(
         put("audioBufferMs", audio.audioBufferMs)
         put("audioOutputLatencyMs", audio.audioOutputLatencyMs)
         put("audioFastForwardVolume", audio.audioFastForwardVolume)
+        put("audioUnlimitedVolume", audio.audioUnlimitedVolume)
         put("spu2NeonReverb", audio.spu2NeonReverb)
         put("audioOpenSLES", audio.audioOpenSLES)
         put("audioRecordingCompatible", audio.audioRecordingCompatible)
@@ -2419,6 +2426,7 @@ data class Settings(
                     audioBufferMs = json.optInt("audioBufferMs", def.audio.audioBufferMs),
                     audioOutputLatencyMs = json.optInt("audioOutputLatencyMs", def.audio.audioOutputLatencyMs),
                     audioFastForwardVolume = json.optInt("audioFastForwardVolume", def.audio.audioFastForwardVolume),
+                    audioUnlimitedVolume = json.optInt("audioUnlimitedVolume", def.audio.audioUnlimitedVolume),
                     spu2NeonReverb = json.optBoolean("spu2NeonReverb", def.audio.spu2NeonReverb),
                     audioOpenSLES = json.optBoolean("audioOpenSLES", def.audio.audioOpenSLES),
                     audioRecordingCompatible = json.optBoolean("audioRecordingCompatible", def.audio.audioRecordingCompatible),
@@ -2711,6 +2719,7 @@ data class Settings(
             if (current.audio.audioBufferMs != base.audio.audioBufferMs) j.put("audioBufferMs", current.audio.audioBufferMs)
             if (current.audio.audioOutputLatencyMs != base.audio.audioOutputLatencyMs) j.put("audioOutputLatencyMs", current.audio.audioOutputLatencyMs)
             if (current.audio.audioFastForwardVolume != base.audio.audioFastForwardVolume) j.put("audioFastForwardVolume", current.audio.audioFastForwardVolume)
+            if (current.audio.audioUnlimitedVolume != base.audio.audioUnlimitedVolume) j.put("audioUnlimitedVolume", current.audio.audioUnlimitedVolume)
             if (current.audio.spu2NeonReverb != base.audio.spu2NeonReverb) j.put("spu2NeonReverb", current.audio.spu2NeonReverb)
             if (current.audio.audioOpenSLES != base.audio.audioOpenSLES) j.put("audioOpenSLES", current.audio.audioOpenSLES)
             if (current.audio.audioRecordingCompatible != base.audio.audioRecordingCompatible) j.put("audioRecordingCompatible", current.audio.audioRecordingCompatible)
@@ -2994,6 +3003,7 @@ data class Settings(
                 audioBufferMs = if (overrides.has("audioBufferMs")) overrides.getInt("audioBufferMs") else base.audio.audioBufferMs,
                 audioOutputLatencyMs = if (overrides.has("audioOutputLatencyMs")) overrides.getInt("audioOutputLatencyMs") else base.audio.audioOutputLatencyMs,
                 audioFastForwardVolume = if (overrides.has("audioFastForwardVolume")) overrides.getInt("audioFastForwardVolume") else base.audio.audioFastForwardVolume,
+                audioUnlimitedVolume = if (overrides.has("audioUnlimitedVolume")) overrides.getInt("audioUnlimitedVolume") else base.audio.audioUnlimitedVolume,
                 spu2NeonReverb = if (overrides.has("spu2NeonReverb")) overrides.getBoolean("spu2NeonReverb") else base.audio.spu2NeonReverb,
                 audioOpenSLES = if (overrides.has("audioOpenSLES")) overrides.getBoolean("audioOpenSLES") else base.audio.audioOpenSLES,
                 audioRecordingCompatible = if (overrides.has("audioRecordingCompatible")) overrides.getBoolean("audioRecordingCompatible") else base.audio.audioRecordingCompatible,

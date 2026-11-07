@@ -762,6 +762,24 @@ private fun SessionPane(state: EmulationMenuUiState, viewModel: EmulationMenuVie
                     runCatching { kr.co.iefriends.pcsx2.NativeApp.speedhackLimitermode(MainActivityRuntime.ffLimiterMode()) }
             },
         )
+        // The speeds of the two extra on-screen fast-forward buttons (▶▶2 / ▶▶3), same scale.
+        for (slot in 2..MainActivityRuntime.FF_SLOT_COUNT) {
+            Spacer(Modifier.height(6.dp))
+            var slotSpeed by remember(slot) { mutableStateOf(MainActivityRuntime.fastForwardSpeedFor(slot)) }
+            com.armsx2.ui.settings.IntSliderRow(
+                label = str("perf.ffSpeedButton.label").format(slot),
+                value = slotSpeed,
+                min = 2,
+                max = MainActivityRuntime.FF_SPEED_UNLIMITED,
+                valueFormatter = { if (it >= MainActivityRuntime.FF_SPEED_UNLIMITED) ffUnlimitedLabel else "${it}×" },
+                onChange = { v ->
+                    slotSpeed = v
+                    MainActivityRuntime.setFastForwardSpeedFor(slot, v)
+                    if (MainActivityRuntime.fastForwardToggleActive && MainActivityRuntime.activeFfSlot == slot)
+                        runCatching { kr.co.iefriends.pcsx2.NativeApp.speedhackLimitermode(MainActivityRuntime.ffLimiterMode()) }
+                },
+            )
+        }
         Spacer(Modifier.height(6.dp))
         // OSD colour, cycled in place. Shares the palette with the All Settings picker rather
         // than carrying its own copy. Safe to add here: this card's rows are plain switches with
@@ -1219,6 +1237,16 @@ private fun PerformancePane(state: EmulationMenuUiState, viewModel: EmulationMen
             selected = settings.frameLimit.nominalSpeedPercent,
             keyPrefix = str("perf.speedLimit.label"),
             onSelect = viewModel::setSpeed,
+        )
+        // Any value between the presets: 50..200% in 1% steps (drag, or left/right on a pad).
+        com.armsx2.ui.settings.IntSliderRow(
+            label = str("perf.speedLimitCustom.label"),
+            value = settings.frameLimit.nominalSpeedPercent.coerceIn(50, 200),
+            min = 50,
+            max = 200,
+            valueFormatter = { "$it%" },
+            onReset = if (settings.frameLimit.nominalSpeedPercent == 100) null else ({ viewModel.setSpeed(100) }),
+            onChange = viewModel::setSpeed,
         )
     }
     HorizontalOptions(

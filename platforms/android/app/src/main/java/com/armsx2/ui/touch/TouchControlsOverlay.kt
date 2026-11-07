@@ -800,6 +800,7 @@ private fun drawableFor(id: TouchButtonId, pressed: Boolean): Int = when (id) {
     // DPad / sticks render their own composed sprites; PAUSE / FAST_FORWARD / macros render their own.
     TouchButtonId.DPAD, TouchButtonId.L_STICK, TouchButtonId.R_STICK,
     TouchButtonId.PAUSE, TouchButtonId.PRESSURE, TouchButtonId.FAST_FORWARD,
+    TouchButtonId.FAST_FORWARD_2, TouchButtonId.FAST_FORWARD_3,
     TouchButtonId.MACRO1, TouchButtonId.MACRO2, TouchButtonId.MACRO3, TouchButtonId.MACRO4,
     TouchButtonId.SAVE_STATE, TouchButtonId.LOAD_STATE, TouchButtonId.SCREENSHOT,
     TouchButtonId.ANALOG_EXTRA,
@@ -1324,37 +1325,65 @@ private fun PauseGlyph(sizeDp: Float, opacity: Float) {
  *  so it can be dragged/resized like any widget; in play mode a tap calls
  *  MainActivityRuntime.toggleFastForward() — the same action as the FAST_FORWARD_TOGGLE hotkey.
  *  Opt-in (disabled in the default layout). */
+/** Which fast-forward speed a ▶▶ button runs: 1 = the main Fast-Forward Speed, 2 and 3 = the
+ *  extra buttons' own speeds (MainActivityRuntime.fastForwardSpeedFor). */
+private fun ffSlotFor(id: TouchButtonId): Int = when (id) {
+    TouchButtonId.FAST_FORWARD_2 -> 2
+    TouchButtonId.FAST_FORWARD_3 -> 3
+    else -> 1
+}
+
 @Composable
 private fun FastForwardWidget(cfg: TouchButtonCfg, edit: Boolean) {
+    val slot = ffSlotFor(cfg.id)
+    // The extra buttons say which speed they run, since that is all that tells them apart. Read
+    // at composition: the speed is set in the pause menu, which recomposes the overlay on close.
+    val speedCaption = if (slot == 1) null
+        else MainActivityRuntime.ffSpeedLabel(MainActivityRuntime.fastForwardSpeedFor(slot))
     if (edit) {
         Box(
             modifier = Modifier.fillMaxSize().editGestures(cfg),
             contentAlignment = Alignment.Center,
         ) {
             EditAdornment(cfg.id)
-            Text("▶▶", color = Color.White.copy(alpha = 0.75f), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("▶▶", color = Color.White.copy(alpha = 0.75f), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                if (speedCaption != null)
+                    Text(speedCaption, color = Color.White.copy(alpha = 0.75f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
         }
     } else {
         val opacity = TouchControls.opacity.floatValue
+        // Lit (the blue the macros use) while this button's speed is the one running, so with three
+        // of them on screen you can tell which is engaged.
+        val active = MainActivityRuntime.fastForwardUiSlot.intValue == slot
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.30f * opacity))
+                .background(
+                    if (active) Color(0xFF3A6EA5).copy(alpha = opacity)
+                    else Color.Black.copy(alpha = 0.30f * opacity)
+                )
                 .pointerInput(cfg.id) {
                     detectTapGestures(
                         onPress = { TouchControls.noteTouchInteraction() },
-                        onTap = { MainActivityRuntime.instance?.toggleFastForward() },
+                        onTap = { MainActivityRuntime.instance?.toggleFastForward(slot) },
                     )
                 },
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                "▶▶",
-                color = Color.White.copy(alpha = legibleAlpha(opacity, 0.35f)),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-            )
+            val textColor = Color.White.copy(alpha = legibleAlpha(opacity, 0.35f))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "▶▶",
+                    color = textColor,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                if (speedCaption != null)
+                    Text(speedCaption, color = textColor, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
@@ -1489,7 +1518,8 @@ private fun StateActionWidget(cfg: TouchButtonCfg, edit: Boolean) {
                         // confirmation). LONG-PRESS = open the slot picker to choose a slot.
                         onTap = {
                             when (cfg.id) {
-                                TouchButtonId.SAVE_STATE -> MainActivityRuntime.instance?.saveState()
+                                // Rolling saves, when on (save state picker → Rolling saves).
+                                TouchButtonId.SAVE_STATE -> MainActivityRuntime.instance?.saveStateFromButton()
                                 TouchButtonId.LOAD_STATE -> MainActivityRuntime.instance?.loadState()
                                 else -> MainActivityRuntime.instance?.applicationContext?.let {
                                     com.armsx2.Screenshots.capture(it)

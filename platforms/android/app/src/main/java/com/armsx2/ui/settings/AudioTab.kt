@@ -119,6 +119,17 @@ fun AudioTab(state: MutableState<Settings>) {
             field = "audioFastForwardVolume",
         )
         SettingsDivider()
+        IntSliderRow(
+            label = str("audio.unlimitedVolume.label"),
+            value = s.audio.audioUnlimitedVolume.coerceIn(0, 100),
+            min = 0,
+            max = 100,
+            description = str("audio.unlimitedVolume.description"),
+            valueFormatter = { "$it%" },
+            onChange = { apply(s.copy(audio = s.audio.copy(audioUnlimitedVolume = it))) },
+            field = "audioUnlimitedVolume",
+        )
+        SettingsDivider()
         ToggleRow(
             str("audio.swapChannels.label"),
             s.audio.audioSwapChannels,

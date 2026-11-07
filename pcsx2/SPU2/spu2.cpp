@@ -45,6 +45,27 @@ static std::array<float, AudioStream::CHUNK_SIZE * 2> s_current_chunk;
 static u32 s_current_chunk_pos;
 static u32 s_standard_volume = 0;
 static u32 s_fast_forward_volume = 0;
+static u32 s_unlimited_volume = 0;
+// Set once a frontend reports fast-forward itself (SetFastForwardEngaged). Until then the
+// volume follows the target speed exactly as upstream does (1.0 = standard, else fast-forward).
+static bool s_frontend_reports_ff = false;
+static bool s_fast_forward_engaged = false;
+// The volume slot the stream was last set from, so SaveOutputVolume writes back to the slot
+// that was actually playing rather than one recomputed after the speed already changed.
+static u32* s_applied_volume_slot = nullptr;
+
+static u32* ActiveVolumeSlot()
+{
+	if (s_frontend_reports_ff)
+	{
+		if (s_fast_forward_engaged)
+			return &s_fast_forward_volume;
+		if (VMManager::GetLimiterMode() == LimiterModeType::Unlimited)
+			return &s_unlimited_volume;
+		return &s_standard_volume;
+	}
+	return (VMManager::GetTargetSpeed() == 1.0f) ? &s_standard_volume : &s_fast_forward_volume;
+}
 
 static bool OutputShouldPause(bool vm_paused);
 
@@ -131,6 +152,7 @@ void SPU2::CreateOutputStream()
 	{
 		s_standard_volume = EmuConfig.SPU2.StandardVolume;
 		s_fast_forward_volume = EmuConfig.SPU2.FastForwardVolume;
+		s_unlimited_volume = EmuConfig.SPU2.UnlimitedVolume;
 		s_output_muted = EmuConfig.SPU2.OutputMuted;
 	}
 	// Else persist volume through stream recreates.
@@ -175,13 +197,29 @@ void SPU2::SetOutputVolume(u32 volume)
 	// The Android JNI setters call this from their own thread with no hold. That race is accepted;
 	// this assert reports it in a Devel build running Lockstep.
 	IOP_SIDE_ASSERT();
-	if (VMManager::GetTargetSpeed() == 1.0f)
-		s_standard_volume = volume;
-	else
-		s_fast_forward_volume = volume;
+	*ActiveVolumeSlot() = volume;
 
 	if (s_output_stream)
 		SPU2::UpdateOutputVolume();
+}
+
+void SPU2::SetStandardVolume(u32 volume)
+{
+	s_standard_volume = volume;
+	if (s_output_stream)
+		SPU2::UpdateOutputVolume();
+}
+
+void SPU2::SetFastForwardEngaged(bool engaged)
+{
+	const bool changed = !s_frontend_reports_ff || s_fast_forward_engaged != engaged;
+	s_frontend_reports_ff = true;
+	s_fast_forward_engaged = engaged;
+	if (changed && s_output_stream)
+	{
+		SPU2::SaveOutputVolume();
+		SPU2::UpdateOutputVolume();
+	}
 }
 
 float SPU2::GetNominalRate()
@@ -226,20 +264,15 @@ bool SPU2::IsSwapChannels()
 
 void SPU2::UpdateOutputVolume()
 {
-	s_output_stream->SetOutputVolume(s_output_muted ?
-										 0 : (VMManager::GetTargetSpeed() == 1.0f ?
-										 	s_standard_volume : s_fast_forward_volume));
+	u32* const slot = ActiveVolumeSlot();
+	s_applied_volume_slot = slot;
+	s_output_stream->SetOutputVolume(s_output_muted ? 0 : *slot);
 }
 
 void SPU2::SaveOutputVolume()
 {
-	if (!s_output_muted)
-	{
-		if (VMManager::GetTargetSpeed() == 1.0f)
-			s_standard_volume = GetOutputVolume();
-		else
-			s_fast_forward_volume = GetOutputVolume();
-	}
+	if (!s_output_muted && s_output_stream)
+		*(s_applied_volume_slot ? s_applied_volume_slot : ActiveVolumeSlot()) = GetOutputVolume();
 }
 
 // Settings-apply parks the VM (commitSettings / live GS) and the pause edge
@@ -348,19 +381,12 @@ void SPU2::OnTargetSpeedChanged()
 
 	s_output_stream->SetNominalRate(GetNominalRate());
 
-	// Flipped save as speed has already changed.
+	// The speed has already changed: save the playing volume back to the slot it came from,
+	// then switch to the slot for the new speed.
 	if (!s_output_muted)
 	{
-		if (VMManager::GetTargetSpeed() == 1.0f)
-		{
-			s_fast_forward_volume = GetOutputVolume();
-			s_output_stream->SetOutputVolume(s_standard_volume);
-		}
-		else
-		{
-			s_standard_volume = GetOutputVolume();
-			s_output_stream->SetOutputVolume(s_fast_forward_volume);
-		}
+		SPU2::SaveOutputVolume();
+		SPU2::UpdateOutputVolume();
 	}
 }
 
@@ -429,6 +455,12 @@ void SPU2::CheckForConfigChanges(const Pcsx2Config& old_config)
 	if (opts.FastForwardVolume != old_opts.FastForwardVolume)
 	{
 		s_fast_forward_volume = opts.FastForwardVolume;
+		volume_settings_changed = true;
+	}
+
+	if (opts.UnlimitedVolume != old_opts.UnlimitedVolume)
+	{
+		s_unlimited_volume = opts.UnlimitedVolume;
 		volume_settings_changed = true;
 	}
 
