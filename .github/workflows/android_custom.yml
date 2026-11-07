@@ -1,0 +1,109 @@
+# Fork-only: builds the sideloadable "ARMSX2 Custom" APK on every push to the
+# `custom` branch, using the same dual-core (4k + 16k page) + PGO recipe as the
+# official nightly (platforms/android/tools/ci-nightly-dualcore.sh).
+#
+# - Package com.armsx2.custom, label "ARMSX2 Custom": installs beside the official app.
+# - In-app updater compiled out (it checks the official ARMSX2 releases).
+# - Signed with one stable key from the ARMSX2_SIGN_KS_B64 secret (base64 keystore),
+#   so each build updates in place over the previous one.
+# - Published to the pre-release tag `armsx2-custom-latest` (downloadable from a
+#   phone without logging in) and as a workflow artifact.
+name: Android Custom APK
+
+on:
+  push:
+    branches:
+      - custom
+    paths-ignore:
+      - '**/*.md'
+      - 'LICENSE*'
+      - '.gitignore'
+  workflow_dispatch:
+
+concurrency:
+  group: android-custom-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    name: Android APK (custom)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: platforms/android
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install NDK + CMake
+        run: yes | sdkmanager "ndk;29.0.14206865" "cmake;3.31.6" >/dev/null || true
+
+      - name: Fetch shaderc third-party deps
+        run: python3 app/src/main/cpp/3rdparty/shaderc/utils/git-sync-deps
+
+      - name: Install Rust Android target
+        run: rustup target add aarch64-linux-android
+
+      - name: Build dual-core (4k + 16k) + PGO APK
+        env:
+          FLAVOR: Github
+          APK_ID: com.armsx2.custom
+          APP_LABEL: ARMSX2 Custom
+          CHANNEL: custom
+          EXTRA_GRADLE_ARGS: -Parmsx2.inAppUpdater=false
+          SIGN_KS_B64: ${{ secrets.ARMSX2_SIGN_KS_B64 }}
+          SIGN_KS_PASS: ${{ secrets.ARMSX2_SIGN_KS_PASS || 'android' }}
+          SIGN_KEY_ALIAS: ${{ secrets.ARMSX2_SIGN_KEY_ALIAS || 'androiddebugkey' }}
+        run: |
+          if [ -z "$SIGN_KS_B64" ]; then
+            echo "::error::ARMSX2_SIGN_KS_B64 secret is not set; refusing to build an APK that won't update in place."
+            exit 1
+          fi
+          printf '%s' "$SIGN_KS_B64" | base64 -d > "$RUNNER_TEMP/sign.keystore"
+          export SIGN_KS="$RUNNER_TEMP/sign.keystore"
+          # Always increasing, so a newer build never looks like a downgrade.
+          export VC=$((100000 + GITHUB_RUN_NUMBER))
+          export VN="custom-$(git rev-parse --short=8 HEAD)"
+          export OUT="$PWD/app/build/outputs/apk/custom/ARMSX2-Custom-${VN}.apk"
+          echo "VN=$VN" >> "$GITHUB_ENV"
+          bash tools/ci-nightly-dualcore.sh
+
+      - name: Report signing certificate
+        run: |
+          BT="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          sha=$("$BT/apksigner" verify --print-certs app/build/outputs/apk/custom/*.apk | sed -n 's/.*certificate SHA-256 digest: //p' | head -1)
+          echo "::notice title=APK signing cert SHA-256::$sha"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: armsx2-custom-android-arm64
+          path: platforms/android/app/build/outputs/apk/custom/*.apk
+          if-no-files-found: error
+
+      - name: Publish to armsx2-custom-latest pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=armsx2-custom-latest
+          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --prerelease --target "$GITHUB_SHA" \
+            --title "ARMSX2 Custom ($VN)" \
+            --notes "Built from ${GITHUB_SHA} on branch ${GITHUB_REF_NAME} (run #${GITHUB_RUN_NUMBER})." \
+            app/build/outputs/apk/custom/*.apk

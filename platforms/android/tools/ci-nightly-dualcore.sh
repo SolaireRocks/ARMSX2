@@ -26,6 +26,11 @@
 #                         file is absent the build falls back to PGO=none rather
 #                         than failing, so a missing profile never breaks CI)
 #   OUT                   output apk path
+#   CHANNEL               BuildConfig.CHANNEL (default nightly)
+#   EXTRA_GRADLE_ARGS     extra -P flags, space-separated (fork/custom builds)
+#   SIGN_KS / SIGN_KS_PASS / SIGN_KEY_ALIAS / SIGN_KEY_PASS
+#                         single-key signing for fork/custom builds, used only when
+#                         the ROTATION_* lineage secrets are absent
 #   NIGHTLY_KEYSTORE / NIGHTLY_KS_PASS / NIGHTLY_KEY_ALIAS / NIGHTLY_KEY_PASS
 #                         stable signing key (recommended: add as a repo secret
 #                         so nightly-over-nightly updates install; otherwise a
@@ -44,6 +49,8 @@ flavor_lc="$(printf '%s' "$FLAVOR" | tr '[:upper:]' '[:lower:]')"
 APK_ID="${APK_ID:-com.armsx2.nightly}"                        # separate package -> side-by-side install
 APP_LABEL="${APP_LABEL:-@string/app_name_nightly}"
 PROF="${PROF:-$ROOT_DIR/pgo/armsx2.profdata}"
+CHANNEL="${CHANNEL:-nightly}"
+EXTRA_GRADLE_ARGS="${EXTRA_GRADLE_ARGS:-}"
 OUT="${OUT:-$ROOT_DIR/app/build/outputs/apk/nightly/ARMSX2-nightly-${VN}-vc${VC}.apk}"
 
 # --- resolve Android SDK build-tools (Linux CI exports ANDROID_HOME/SDK_ROOT) ---
@@ -83,8 +90,9 @@ build_core() { # pagesize libname
 		-Parmsx2.versionCode="$VC" \
 		-Parmsx2.versionName="$VN" \
 		-Parmsx2.applicationId="$APK_ID" \
-		-Parmsx2.channel=nightly \
+		-Parmsx2.channel="$CHANNEL" \
 		-Parmsx2.appLabel="$APP_LABEL" \
+		$EXTRA_GRADLE_ARGS \
 		--stacktrace
 	[[ -f "$BUILT" ]] || { echo "FATAL: gradle produced no APK for $ln ($BUILT)" >&2; exit 1; }
 	unzip -l "$BUILT" "lib/arm64-v8a/lib${ln}.so" >/dev/null \
@@ -133,6 +141,14 @@ if [[ -n "${ROTATION_DEBUG_KS:-}"   && -f "${ROTATION_DEBUG_KS:-/nope}"   \
 		--ks "$ROTATION_RELEASE_KS" --ks-key-alias "$ROTATION_RELEASE_KEY_ALIAS" \
 		--ks-pass "pass:$ROTATION_RELEASE_KS_PASS" --key-pass "pass:${ROTATION_RELEASE_KEY_PASS:-$ROTATION_RELEASE_KS_PASS}" \
 		--lineage "$ROTATION_LINEAGE" \
+		--in "$ALN" --out "$OUT"
+elif [[ -n "${SIGN_KS:-}" && -f "${SIGN_KS:-/nope}" && -n "${SIGN_KS_PASS:-}" ]]; then
+	# Fork/custom builds: one stable key (no rotation lineage), so each build still
+	# updates in place over the previous one signed with the same key.
+	echo "Signing with single key SIGN_KS (alias ${SIGN_KEY_ALIAS:-androiddebugkey})."
+	"$APKSIGNER" sign \
+		--ks "$SIGN_KS" --ks-key-alias "${SIGN_KEY_ALIAS:-androiddebugkey}" \
+		--ks-pass "pass:$SIGN_KS_PASS" --key-pass "pass:${SIGN_KEY_PASS:-$SIGN_KS_PASS}" \
 		--in "$ALN" --out "$OUT"
 else
 	# FAIL CLOSED. A throwaway-signed nightly cannot update over a previously
