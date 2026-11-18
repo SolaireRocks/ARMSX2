@@ -16,7 +16,6 @@
 
 # Application components instantiated by the Android framework.
 -keep class com.armsx2.Pasx2Application { *; }
--keep class com.armsx2.BootSplashActivity { *; }
 -keep class com.armsx2.Main { *; }
 -keep class com.armsx2.RetroAchievementsHostOverrideReceiver { *; }
 

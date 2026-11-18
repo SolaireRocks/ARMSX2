@@ -2725,8 +2725,6 @@ open class MainActivityRuntime : ComponentActivity() {
         com.armsx2.LibraryView.load()
         com.armsx2.ui.UiScale.load()
         com.armsx2.ui.theme.ThemePreferences.load()
-        com.armsx2.ui.theme.BootLogoPreferences.load()
-        com.armsx2.BootIntro.load(this)
         com.armsx2.ui.ScreenPinning.load()
         com.armsx2.ui.QuickMenuSide.load()
         com.armsx2.ui.theme.ToolbarPositionPreferences.load()
@@ -2734,7 +2732,6 @@ open class MainActivityRuntime : ComponentActivity() {
         com.armsx2.ui.theme.LauncherOrientationPreferences.load()
         com.armsx2.ui.theme.LibraryBackgroundColorPreferences.load()
         com.armsx2.LibraryMusic.load()
-        com.armsx2.PauseMusic.load()
         com.armsx2.MenuSfx.load(applicationContext)
         com.armsx2.ControllerSkinStore.load(applicationContext)
         // Low-battery / high-temperature banners. Registers for the sticky battery broadcast, so
@@ -3101,31 +3098,6 @@ open class MainActivityRuntime : ComponentActivity() {
                         }
                     } else {
                         com.armsx2.LibraryMusic.stop(this@MainActivityRuntime)
-                    }
-                }
-                // In-game pause music: the mirror image of the above — it plays only while a
-                // frontend surface covers a running game, and goes quiet the moment the game
-                // resumes. Both the pause menu AND the in-game manager screens count, because
-                // openInGameScreen() closes the menu as it opens Settings/Achievements/etc., and
-                // sitting in those is exactly the long silence this exists to fill.
-                //
-                // Driven off the same states the overlay itself is drawn from rather than from
-                // InGameOverlay.open()/close(), for the reason the comment above gives: many paths
-                // reach each state (back button, menu button, hotkey, dismissInGameScreen, a boot
-                // that force-closes the overlay) and hooking them individually always misses one.
-                val pauseMenuUp = WindowImpl.overlayVisible.value || WindowImpl.inGameScreen.value != null
-                androidx.compose.runtime.LaunchedEffect(pauseMenuUp, com.armsx2.PauseMusic.enabled.value) {
-                    if (pauseMenuUp) {
-                        // start() plays immediately now (no active-audio deference — the game's own
-                        // stream stays open-but-silent behind the overlay). A couple of light
-                        // retries only cover a transient MediaPlayer prepare hiccup.
-                        repeat(3) {
-                            com.armsx2.PauseMusic.start(this@MainActivityRuntime)
-                            if (com.armsx2.PauseMusic.isPlaying()) return@LaunchedEffect
-                            kotlinx.coroutines.delay(250)
-                        }
-                    } else {
-                        com.armsx2.PauseMusic.stop()
                     }
                 }
                 // Screen orientation follows whichever tier is live: a running game's per-game
@@ -6121,11 +6093,6 @@ open class MainActivityRuntime : ComponentActivity() {
             com.armsx2.MenuSfx.play(com.armsx2.MenuSfx.Event.SLEEP)
         }
         com.armsx2.navigation.UiNavigator.drawerOpen.value = false
-        // Mark backgrounded BEFORE opening the overlay below. open() sets overlayVisible = true,
-        // which re-fires the pause-music LaunchedEffect — and without this flag already false, that
-        // effect would call start() and play the track on the OS home screen. setForeground(false)
-        // also pauses whatever is currently playing.
-        com.armsx2.PauseMusic.setForeground(false)
         // Leaving the app (home / recents / slide-out) while a game is running:
         // open the pause OVERLAY instead of a silent pause. A bare pause left
         // users staring at a frozen game with no obvious way back — they had to
@@ -6146,7 +6113,6 @@ open class MainActivityRuntime : ComponentActivity() {
         // like the emulator ignoring the home button. Paused, not stopped, so returning
         // to the library picks it back up.
         com.armsx2.LibraryMusic.pause()
-        // Pause-menu track was already paused by setForeground(false) at the top of onPause.
         super.onPause()
     }
 
@@ -6197,13 +6163,6 @@ open class MainActivityRuntime : ComponentActivity() {
         // still just un-pauses a merely-paused one — while its own guards keep it a no-op
         // when the setting is off, a VM is running, or that other app is still playing.
         com.armsx2.LibraryMusic.start(this)
-        // Back in the foreground: clear the background guard first, THEN restart the pause track if a
-        // menu is still up. The LaunchedEffect won't do it — the overlay states didn't change while
-        // we were away, so it never re-runs — and start() no-ops until foreground is true again.
-        com.armsx2.PauseMusic.setForeground(true)
-        if (WindowImpl.overlayVisible.value || WindowImpl.inGameScreen.value != null) {
-            com.armsx2.PauseMusic.start(this)
-        }
     }
 
     override fun onNewIntent(intent: Intent) {
