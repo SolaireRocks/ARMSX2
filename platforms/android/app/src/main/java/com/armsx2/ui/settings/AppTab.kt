@@ -743,62 +743,8 @@ fun AppTab() {
             onChange = { com.armsx2.BatteryWatcher.set(it) },
         )
 
-        ToggleRow(
-            label = str("app.libraryMusic"),
-            value = com.armsx2.LibraryMusic.enabled.value,
-            description = str("app.libraryMusic.desc"),
-            onChange = { com.armsx2.LibraryMusic.set(appContext, it) },
-        )
-        if (com.armsx2.LibraryMusic.enabled.value) {
-            IntSliderRow(
-                label = str("app.libraryMusic.volume"),
-                value = com.armsx2.LibraryMusic.volumePercent.value,
-                min = 0,
-                max = 100,
-                valueFormatter = { "$it%" },
-                onChange = { com.armsx2.LibraryMusic.setVolume(it) },
-            )
-            // Custom track: plays a file the user picked from their own device. The app never
-            // ships or redistributes it — same model as importing a texture pack or skin.
-            val musicPicker = rememberLauncherForActivityResult(
-                ActivityResultContracts.OpenDocument()
-            ) { uri ->
-                if (uri != null) {
-                    val name = androidx.documentfile.provider.DocumentFile
-                        .fromSingleUri(appContext, uri)?.name ?: "Custom track"
-                    com.armsx2.LibraryMusic.setCustomTrack(appContext, uri, name)
-                }
-            }
-            val custom = com.armsx2.LibraryMusic.customName.value
-            Text(
-                if (custom != null) str("app.libraryMusic.current").format(custom)
-                else str("app.libraryMusic.default"),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 4.dp, top = 2.dp),
-            )
-            Row(
-                Modifier.fillMaxWidth().padding(top = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                val pick = { musicPicker.launch(arrayOf("audio/*")) }
-                OutlinedButton(
-                    onClick = pick,
-                    modifier = Modifier.controllerFocusable("app.libraryMusic.choose", onConfirm = pick),
-                ) { Text(str("app.libraryMusic.choose")) }
-                if (custom != null) {
-                    val reset = { com.armsx2.LibraryMusic.clearCustomTrack(appContext) }
-                    OutlinedButton(
-                        onClick = reset,
-                        modifier = Modifier.controllerFocusable("app.libraryMusic.reset", onConfirm = reset),
-                    ) { Text(str("app.libraryMusic.reset")) }
-                }
-            }
-        }
-
-        // Menu sound effects. User-provided like the custom track above — the app ships no sounds;
-        // the user imports a folder of named clips (select/back/menu/toggle_on/toggle_off/reset/
-        // slider). Opt-in (off by default) since there are no bundled defaults to fall back on.
+        // Menu sound effects: bundled defaults, each overridable by importing a folder of named
+        // clips (select/back/toggle_on/toggle_off/reset/slider...).
         ToggleRow(
             label = str("app.menuSfx"),
             value = com.armsx2.MenuSfx.enabled.value,

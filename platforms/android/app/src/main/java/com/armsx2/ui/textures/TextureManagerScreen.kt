@@ -56,12 +56,6 @@ fun TextureManagerScreen(onBack: () -> Unit, viewModel: TextureManagerViewModel 
     // Options on the left, packs on the right: the controller keeps to a column and crosses with
     // Left/Right.
     com.armsx2.ui.settings.ColumnControllerNav()
-    // The texture screen has its own music while it is open, in the library music's place.
-    val context = androidx.compose.ui.platform.LocalContext.current
-    androidx.compose.runtime.DisposableEffect(Unit) {
-        com.armsx2.LibraryMusic.playTheme(context, com.armsx2.R.raw.texture_packs_music)
-        onDispose { com.armsx2.LibraryMusic.endTheme(context, com.armsx2.R.raw.texture_packs_music) }
-    }
 
     ArmsBackdrop {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {

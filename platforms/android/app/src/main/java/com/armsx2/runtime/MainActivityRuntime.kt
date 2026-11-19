@@ -2731,7 +2731,6 @@ open class MainActivityRuntime : ComponentActivity() {
         com.armsx2.ui.theme.LibraryChromePreferences.load()
         com.armsx2.ui.theme.LauncherOrientationPreferences.load()
         com.armsx2.ui.theme.LibraryBackgroundColorPreferences.load()
-        com.armsx2.LibraryMusic.load()
         com.armsx2.MenuSfx.load(applicationContext)
         com.armsx2.ControllerSkinStore.load(applicationContext)
         // Low-battery / high-temperature banners. Registers for the sticky battery broadcast, so
@@ -3063,41 +3062,6 @@ open class MainActivityRuntime : ComponentActivity() {
                 androidx.compose.runtime.LaunchedEffect(eState.value) {
                     if (eState.value == EmuState.STOPPED) {
                         SoftKeyboard.release(this@MainActivityRuntime)
-                    }
-                }
-                // Library music follows the same signal from the other side: it plays only
-                // with no VM up, and a booting game silences it. Driven off eState rather
-                // than from the launch/stop call sites for the same reason as the effects
-                // around it — several paths reach each state and one of them always gets
-                // forgotten.
-                androidx.compose.runtime.LaunchedEffect(eState.value, com.armsx2.LibraryMusic.enabled.value) {
-                    if (eState.value == EmuState.STOPPED) {
-                        // RETRY, don't fire once. LibraryMusic defers to whatever is already
-                        // playing, and on a cold boot that is OUR OWN splash: boot_intro.mp4
-                        // carries an audio track and MainActivity is launched from the video's
-                        // completion callback, so the stream is still tearing down when this
-                        // first runs. A single attempt loses that race and never retries —
-                        // eState stays STOPPED — which made music work only after a game had
-                        // been launched and exited. Retrying rides out the handover while
-                        // still leaving a genuinely-playing app (Spotify, a podcast) alone
-                        // once the attempts run out.
-                        // Poll for up to ~12s. On game EXIT the emulator's OWN Oboe/SPU2 stream can
-                        // take several seconds to fully release; start() politely defers while
-                        // AudioManager still reports audio active (so it never stomps Spotify/a
-                        // podcast), so 6×700ms (~4.2s) wasn't long enough for that teardown and the
-                        // music stayed silent until the user toggled it off/on. A longer, finer poll
-                        // rides out the handover; a genuinely-playing third-party app just runs the
-                        // poll out and is left alone.
-                        // start() no longer waits on game streams, ours included (see
-                        // LibraryMusic.otherMediaPlaying), so a game exit no longer holds it back;
-                        // the poll now covers the splash video and the pause-menu track letting go.
-                        repeat(24) {
-                            com.armsx2.LibraryMusic.start(this@MainActivityRuntime)
-                            if (com.armsx2.LibraryMusic.isPlaying()) return@LaunchedEffect
-                            kotlinx.coroutines.delay(500)
-                        }
-                    } else {
-                        com.armsx2.LibraryMusic.stop(this@MainActivityRuntime)
                     }
                 }
                 // Screen orientation follows whichever tier is live: a running game's per-game
@@ -6109,10 +6073,6 @@ open class MainActivityRuntime : ComponentActivity() {
         // PGO instrument build: flush profile counters so a profiling run survives
         // an Android process kill. No-op in normal builds.
         runCatching { NativeApp.dumpPgoProfile() }
-        // Library music must not keep playing out of a backgrounded app — it would sound
-        // like the emulator ignoring the home button. Paused, not stopped, so returning
-        // to the library picks it back up.
-        com.armsx2.LibraryMusic.pause()
         super.onPause()
     }
 
@@ -6156,13 +6116,6 @@ open class MainActivityRuntime : ComponentActivity() {
         // rather than the dead id silently owning it. (inputDeviceListener catches the live remove;
         // this covers a remove that landed while we were paused / was never delivered.)
         com.armsx2.input.PadRouter.pruneStale(android.view.InputDevice.getDeviceIds())
-        // Returning to the foreground: call start(), not resume(). A PERMANENT audio-focus
-        // loss (another media app took over — YouTube, iiSU) releases our player entirely,
-        // and resume() only un-pauses an existing player, so the music stayed dead until a
-        // full app restart (#398-adjacent report). start() rebuilds a released player — and
-        // still just un-pauses a merely-paused one — while its own guards keep it a no-op
-        // when the setting is off, a VM is running, or that other app is still playing.
-        com.armsx2.LibraryMusic.start(this)
     }
 
     override fun onNewIntent(intent: Intent) {

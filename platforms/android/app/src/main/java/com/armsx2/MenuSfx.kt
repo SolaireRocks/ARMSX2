@@ -25,16 +25,16 @@ import java.io.File
  * model as importing a texture pack, a skin, or a music track.
  *
  * Playback is a SoundPool for near-zero-latency, overlap-friendly one-shots, kept OFF the emulator's
- * Oboe/SPU2 path (its own USAGE_GAME attributes) so it never contends with SPU2 output (cf. the
- * LibraryMusic note on Android reclaiming Oboe, #333).
+ * Oboe/SPU2 path (its own USAGE_GAME attributes) so it never contends with SPU2 output (Android
+ * has been observed reclaiming the Oboe stream when the VM pauses, #333).
  */
 object MenuSfx {
     private const val TAG = "MenuSfx"
     private const val EnabledKey = "ui.menuSfx"
     private const val VolumeKey = "ui.menuSfx.volume"
     private const val PackNameKey = "ui.menuSfx.packName"
-    // 15% by default — these fire on every interaction, so they should sit well under the UI (same
-    // reasoning as LibraryMusic's default). Applies to fresh installs; existing users keep their set value.
+    // 15% by default — these fire on every interaction, so they should sit well under the UI.
+    // Applies to fresh installs; existing users keep their set value.
     private const val DefaultVolumePercent = 15
 
     /** UI events a sound binds to. [fileName] is the base name to use when importing a custom pack
@@ -43,7 +43,6 @@ object MenuSfx {
         NAV("nav", R.raw.sfx_nav_a, R.raw.sfx_nav_b), // alternates two soft ticks as the highlight moves
         SELECT("select", R.raw.sfx_click),       // confirm / launch a game: a short click
         SUBMENU("submenu", R.raw.sfx_submenu),   // open a settings menu / sub-screen
-        MENU_OPEN("menu", R.raw.sfx_menu),       // open the in-game pause menu
         BACK("back", R.raw.sfx_back),
         TOGGLE_ON("toggle_on", R.raw.sfx_toggle_on),
         TOGGLE_OFF("toggle_off", R.raw.sfx_toggle_off),

@@ -196,27 +196,6 @@ fun AboutScreen(onBack: () -> Unit, viewModel: AboutViewModel = viewModel()) {
                                 openSource(Modifier.weight(1f))
                             }
                         }
-                        // The library music is CC0; the credit is voluntary, at the author's request.
-                        Text(
-                            str("app.credits.music"),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                        )
-                        // The Icon Museum's track asks for attribution; this and MC Icon Info give it.
-                        Text(
-                            str("app.credits.museumMusic"),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                        )
-                        // The texture screen's track is The Cynic Project's too, and asks for the same credit.
-                        Text(
-                            str("app.credits.texturesMusic"),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                        )
                         // Bundled menu sound effects — also CC0, credited voluntarily.
                         Text(
                             str("app.credits.sfx"),
