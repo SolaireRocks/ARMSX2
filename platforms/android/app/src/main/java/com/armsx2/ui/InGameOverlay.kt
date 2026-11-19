@@ -205,7 +205,6 @@ object InGameOverlay {
         frameLimitOn.value = settingsState.value.frameLimit.frameLimitEnable
         hardcoreOn.value = runCatching { NativeApp.isHardcoreMode() }.getOrDefault(false)
         if (MainActivityRuntime.eState.value != EmuState.STOPPED) MainActivityRuntime.pauseForOverlay()
-        com.armsx2.MenuSfx.play(com.armsx2.MenuSfx.Event.MENU_OPEN)
         WindowImpl.overlayVisible.value = true
     }
 
