@@ -137,7 +137,7 @@ object GameplayRecorder {
         val buttonOn = layout.buttons.any { it.id == TouchButtonId.SAVE_CLIP && it.enabled }
         if (buttonOn) return true
         val hotkey = runCatching {
-            ControllerMappings.hotkeyKeycode(ControllerMappings.SysHotkey.SAVE_CLIP)
+            ControllerMappings.hotkeyCode(ControllerMappings.SysHotkey.SAVE_CLIP)
         }.getOrDefault(0)
         return hotkey != 0
     }
