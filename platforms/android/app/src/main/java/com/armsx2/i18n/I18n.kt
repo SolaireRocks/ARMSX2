@@ -2161,6 +2161,12 @@ private val BASE_EN: Map<String, String> = mapOf(
     "touch.stateAction.load" to "LOAD",
     "touch.stateAction.save" to "SAVE",
     "touch.stateAction.screenshot" to "SHOT",
+    "touch.stateAction.record" to "REC",
+    "touch.stateAction.saveClip" to "CLIP",
+    "overlay.recording.clipLength.label" to "Replay clip length",
+    "overlay.recording.clipLength.description" to "Seconds of gameplay kept in memory for the Save Clip button (saved to Movies/ARMSX2 at normal speed and volume).",
+    "overlay.recording.resolution.label" to "Recording resolution",
+    "overlay.recording.resolution.description" to "Maximum vertical resolution for gameplay recordings and saved clips.",
 
     // Namco System 246/256 arcade games (.acgame)
     "arcade.notice.title" to "Arcade game",

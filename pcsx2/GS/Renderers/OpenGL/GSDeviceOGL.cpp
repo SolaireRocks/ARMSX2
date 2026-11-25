@@ -4905,6 +4905,7 @@ void GSDeviceOGL::RemotePlayVSync(GSTexture* src, const GSVector4& src_uv, const
 	slot.hardware = use_hardware;
 	slot.recorded_ns = static_cast<u64>(std::chrono::duration_cast<std::chrono::nanoseconds>(
 		std::chrono::steady_clock::now().time_since_epoch()).count());
+	slot.emulated_audio_frames = GSRemotePlay::g_rec_audio_written.load(std::memory_order_acquire);
 
 	if (use_hardware)
 	{

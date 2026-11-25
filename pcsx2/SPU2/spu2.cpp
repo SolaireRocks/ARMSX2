@@ -653,6 +653,11 @@ __forceinline void spu2Output(StereoOut32 out)
 		{
 			GSRemotePlay::PushAudio(s_current_chunk.data(), AudioStream::CHUNK_SIZE);
 		}
+		if (GSRemotePlay::g_rec_audio_on.load(std::memory_order_relaxed) &&
+			SPU2::GetConsoleSampleRate() == GSRemotePlay::AUDIO_SAMPLE_RATE) [[unlikely]]
+		{
+			GSRemotePlay::PushRecAudio(s_current_chunk.data(), AudioStream::CHUNK_SIZE);
+		}
 
 		s_output_stream->WriteChunk(s_current_chunk.data());
 	}

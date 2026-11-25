@@ -861,7 +861,10 @@ open class MainActivityRuntime : ComponentActivity() {
                     emulationOwnsOrientation = true
                     // Opt-in only: blocks a controller's Home button from minimising the game,
                     // which the app cannot do any other way — HOME never reaches us (#425).
-                    instance?.let { com.armsx2.ui.ScreenPinning.start(it) }
+                    instance?.let {
+                        com.armsx2.ui.ScreenPinning.start(it)
+                        com.armsx2.GameplayRecorder.syncReplayBuffer(it.applicationContext, true)
+                    }
                     applyRendererPrefs()
                     // Both of these are consumed by native when the VM boots, so they must be
                     // pushed BEFORE runVMThread (which blocks until the VM exits). One resolve,
@@ -918,6 +921,7 @@ open class MainActivityRuntime : ComponentActivity() {
                     if (!arcadeLaunch) noteBootFailure("bugreport.boot.message")
                 } finally {
                     if (vmReturned) runCatching { com.armsx2.bugreport.BugReport.clearCrashMarker() }
+                    instance?.let { com.armsx2.GameplayRecorder.onGameStoppedOrPaused(it.applicationContext) }
                     // runVMThread blocks until the VM exits (Stopping/Shutdown
                     // observed). Drop back to STOPPED only after native has
                     // actually unwound, so users can't launch the next game
@@ -1401,6 +1405,7 @@ open class MainActivityRuntime : ComponentActivity() {
                     noteBootFailure("bugreport.boot.message")
                 } finally {
                     if (vmReturned) runCatching { com.armsx2.bugreport.BugReport.clearCrashMarker() }
+                    instance?.let { com.armsx2.GameplayRecorder.onGameStoppedOrPaused(it.applicationContext) }
                     eState.value = EmuState.STOPPED
                     val restartNow = synchronized(vmLifecycleLock) {
                         vmRunLoopActive = false
@@ -1501,6 +1506,7 @@ open class MainActivityRuntime : ComponentActivity() {
                     // Cleared only after the resume lands, so a later non-overlay pause (VM stop,
                     // shutdown) still releases the device normally.
                     runCatching { NativeApp.setOutputPauseSuppressed(false) }
+                    instance?.let { com.armsx2.GameplayRecorder.syncReplayBuffer(it.applicationContext, true) }
                 }
             }
         }
@@ -3953,6 +3959,14 @@ open class MainActivityRuntime : ComponentActivity() {
                     if (down) com.armsx2.Screenshots.capture(applicationContext)
                     return true
                 }
+                ControllerMappings.SysHotkey.RECORD -> {
+                    if (down && event.repeatCount == 0) com.armsx2.GameplayRecorder.toggleRecording(applicationContext)
+                    return true
+                }
+                ControllerMappings.SysHotkey.SAVE_CLIP -> {
+                    if (down && event.repeatCount == 0) com.armsx2.GameplayRecorder.saveClip(applicationContext)
+                    return true
+                }
                 // Once per press: a key repeat of a held combo must not start another save or load.
                 ControllerMappings.SysHotkey.SAVE_STATE -> {
                     if (down && event.repeatCount == 0) quickState(currentSaveSlot.value, saving = true)
@@ -5796,6 +5810,8 @@ open class MainActivityRuntime : ComponentActivity() {
         when (h) {
             ControllerMappings.SysHotkey.MENU -> InGameOverlay.toggle()
             ControllerMappings.SysHotkey.SCREENSHOT -> com.armsx2.Screenshots.capture(applicationContext)
+            ControllerMappings.SysHotkey.RECORD -> com.armsx2.GameplayRecorder.toggleRecording(applicationContext)
+            ControllerMappings.SysHotkey.SAVE_CLIP -> com.armsx2.GameplayRecorder.saveClip(applicationContext)
             ControllerMappings.SysHotkey.SAVE_STATE -> quickState(currentSaveSlot.value, saving = true)
             ControllerMappings.SysHotkey.LOAD_STATE -> quickState(currentSaveSlot.value, saving = false)
             ControllerMappings.SysHotkey.CYCLE_SLOT -> cycleSaveSlot()
@@ -6151,6 +6167,7 @@ open class MainActivityRuntime : ComponentActivity() {
         // No-op if the overlay is already up (it already paused the game).
         if (eState.value == EmuState.RUNNING)
             InGameOverlay.open()
+        com.armsx2.GameplayRecorder.onGameStoppedOrPaused(applicationContext)
         // Persist Vulkan pipeline cache before Android can reap the process.
         // ~VKShaderCache only fires on a clean device teardown, but swipe-kill
         // / OOM-kill skip that path — every cold launch would otherwise

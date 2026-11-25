@@ -229,5 +229,35 @@ fun OverlayTab(state: MutableState<Settings>) {
             com.armsx2.runtime.MainActivityRuntime.prefs.edit { putBoolean("ui.freeSoftwareNotice", it) }
             runCatching { kr.co.iefriends.pcsx2.NativeApp.setFreeSoftwareNotice(it) }
         }
+        SettingsDivider()
+
+        val clipSeconds = remember { mutableStateOf(com.armsx2.GameplayRecorder.clipSeconds()) }
+        IntSliderRow(
+            label = str("overlay.recording.clipLength.label"),
+            value = clipSeconds.value,
+            min = com.armsx2.GameplayRecorder.MIN_CLIP_SECONDS,
+            max = com.armsx2.GameplayRecorder.MAX_CLIP_SECONDS,
+            description = str("overlay.recording.clipLength.description"),
+            valueFormatter = { "${it}s" },
+            onChange = {
+                clipSeconds.value = it
+                com.armsx2.GameplayRecorder.setClipSeconds(it)
+            },
+        )
+        SettingsDivider()
+
+        val recResOptions = listOf(480, 720, 1080)
+        val recRes = remember { mutableStateOf(com.armsx2.GameplayRecorder.maxHeight()) }
+        SegmentedRow(
+            label = str("overlay.recording.resolution.label"),
+            options = listOf("480p", "720p", "1080p"),
+            selectedIndex = recResOptions.indexOf(recRes.value).coerceAtLeast(1),
+            description = str("overlay.recording.resolution.description"),
+            onChange = {
+                val chosen = recResOptions[it]
+                recRes.value = chosen
+                com.armsx2.GameplayRecorder.setMaxHeight(chosen)
+            },
+        )
     }
 }

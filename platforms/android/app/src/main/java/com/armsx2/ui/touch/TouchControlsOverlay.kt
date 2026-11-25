@@ -803,6 +803,7 @@ private fun drawableFor(id: TouchButtonId, pressed: Boolean): Int = when (id) {
     TouchButtonId.FAST_FORWARD_2, TouchButtonId.FAST_FORWARD_3,
     TouchButtonId.MACRO1, TouchButtonId.MACRO2, TouchButtonId.MACRO3, TouchButtonId.MACRO4,
     TouchButtonId.SAVE_STATE, TouchButtonId.LOAD_STATE, TouchButtonId.SCREENSHOT,
+    TouchButtonId.RECORD, TouchButtonId.SAVE_CLIP,
     TouchButtonId.ANALOG_EXTRA,
     TouchButtonId.GUN_A, TouchButtonId.GUN_B, TouchButtonId.GUN_C,
     TouchButtonId.GUN_START, TouchButtonId.GUN_SELECT, TouchButtonId.GUN_CAL -> R.drawable.pad_cross
@@ -1494,6 +1495,8 @@ private fun StateActionWidget(cfg: TouchButtonCfg, edit: Boolean) {
     val label = when (cfg.id) {
         TouchButtonId.SAVE_STATE -> str("touch.stateAction.save")
         TouchButtonId.LOAD_STATE -> str("touch.stateAction.load")
+        TouchButtonId.RECORD -> str("touch.stateAction.record")
+        TouchButtonId.SAVE_CLIP -> str("touch.stateAction.saveClip")
         else -> str("touch.stateAction.screenshot")
     }
     if (edit) {
@@ -1506,11 +1509,17 @@ private fun StateActionWidget(cfg: TouchButtonCfg, edit: Boolean) {
         }
     } else {
         val opacity = TouchControls.opacity.floatValue
+        val recActive = cfg.id == TouchButtonId.RECORD && com.armsx2.GameplayRecorder.isRecording.value
+        val bgColor = if (recActive) {
+            Color(0xFFD32F2F).copy(alpha = maxOf(opacity, 0.75f))
+        } else {
+            Color.Black.copy(alpha = 0.30f * opacity)
+        }
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.30f * opacity))
+                .background(bgColor)
                 .pointerInput(cfg.id) {
                     detectTapGestures(
                         onPress = { TouchControls.noteTouchInteraction() },
@@ -1521,6 +1530,12 @@ private fun StateActionWidget(cfg: TouchButtonCfg, edit: Boolean) {
                                 // Rolling saves, when on (save state picker → Rolling saves).
                                 TouchButtonId.SAVE_STATE -> MainActivityRuntime.instance?.saveStateFromButton()
                                 TouchButtonId.LOAD_STATE -> MainActivityRuntime.instance?.loadState()
+                                TouchButtonId.RECORD -> MainActivityRuntime.instance?.applicationContext?.let {
+                                    com.armsx2.GameplayRecorder.toggleRecording(it)
+                                }
+                                TouchButtonId.SAVE_CLIP -> MainActivityRuntime.instance?.applicationContext?.let {
+                                    com.armsx2.GameplayRecorder.saveClip(it)
+                                }
                                 else -> MainActivityRuntime.instance?.applicationContext?.let {
                                     com.armsx2.Screenshots.capture(it)
                                 }

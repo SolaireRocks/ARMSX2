@@ -1204,6 +1204,10 @@ object ControllerMappings {
         // no spare button has nothing to give it; bound to a two-button combo, this one costs no
         // button at all. Appended last for the persisted-by-ordinal reason above.
         PRESSURE_MOD_TOGGLE("pad.pressuremodtoggle.keycode", "Pressure Modifier (toggle)"),
+        // Emulated-time gameplay recording & instant replay clip. Appended last for the
+        // persisted-by-ordinal reason above.
+        RECORD("pad.record.keycode", "Record Gameplay (toggle)"),
+        SAVE_CLIP("pad.saveclip.keycode", "Save Replay Clip"),
     }
 
     /**

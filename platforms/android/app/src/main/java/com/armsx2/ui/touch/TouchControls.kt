@@ -1585,6 +1585,10 @@ enum class TouchButtonId(val label: String, val keycode: Int, val kind: Kind) {
     // menu entry left you staring at nothing until you backed out and wondered if it had worked.
     // On the overlay the confirmation appears immediately, where you are already looking.
     SCREENSHOT("SHOT", 0, Kind.STATEACTION),
+    // Emulated-time gameplay recording toggle (turns red while recording) and instant-replay
+    // clip saver (writes the last XX seconds from the rolling buffer). Opt-in (disabled by default).
+    RECORD("REC", 0, Kind.STATEACTION),
+    SAVE_CLIP("CLIP", 0, Kind.STATEACTION),
 
     // Macro / combo buttons: each fires a user-chosen SET of pad buttons at once
     // (e.g. R1+R2+R3). Emits no keycode of its own; the set is configured per macro
@@ -1807,6 +1811,8 @@ data class TouchLayout(val buttons: List<TouchButtonCfg>) {
                 TouchButtonCfg(TouchButtonId.SAVE_STATE, 0.30f, 0.54f, 44f, enabled = false),
                 TouchButtonCfg(TouchButtonId.LOAD_STATE, 0.38f, 0.54f, 44f, enabled = false),
                 TouchButtonCfg(TouchButtonId.SCREENSHOT, 0.46f, 0.54f, 44f, enabled = false),
+                TouchButtonCfg(TouchButtonId.RECORD,     0.70f, 0.54f, 44f, enabled = false),
+                TouchButtonCfg(TouchButtonId.SAVE_CLIP,  0.78f, 0.54f, 44f, enabled = false),
                 // The extra fast-forward speeds (opt-in), on the same row.
                 TouchButtonCfg(TouchButtonId.FAST_FORWARD_2, 0.54f, 0.54f, 44f, enabled = false),
                 TouchButtonCfg(TouchButtonId.FAST_FORWARD_3, 0.62f, 0.54f, 44f, enabled = false),

@@ -326,6 +326,7 @@ endif()
 set(ARMSX2_EMUCORE_LIBRARY_NAME "emucore_4k" CACHE STRING "Android emucore shared library target/output name")
 
 add_library(${ARMSX2_EMUCORE_LIBRARY_NAME} SHARED
+	gameplay_recorder.cpp
 	native-lib.cpp
 	remote_play.cpp
 	remote_play_upnp.cpp

@@ -68,6 +68,9 @@ namespace GSRemotePlay
 		/// When the renderer recorded the frame (steady clock, ns), for how long the GPU usually takes.
 		u64 recorded_ns = 0;
 
+		/// Emulated audio frame count when the renderer recorded this frame, for gameplay recording.
+		u64 emulated_audio_frames = 0;
+
 		/// Readback frames: RGBA rows of width * 4 bytes, mapped for as long as the slot exists.
 		const u8* data = nullptr;
 
@@ -162,6 +165,38 @@ namespace GSRemotePlay
 			// Under the lock, so the reader is either asleep or has not looked yet: never between.
 			std::lock_guard lock(g_audio_mutex);
 			g_audio_cv.notify_one();
+		}
+	}
+
+	// Gameplay recorder: dedicated audio ring + monotonic emulated frame counter so
+	// recording and instant-replay buffering never interfere with Remote Play's cursor.
+	inline constexpr u32 REC_AUDIO_RING_FRAMES = 32768;
+	inline std::atomic<bool> g_rec_audio_on{false};
+	inline std::array<s16, REC_AUDIO_RING_FRAMES * 2> g_rec_audio_ring{};
+	inline std::atomic<u64> g_rec_audio_written{0};
+	inline std::mutex g_rec_audio_mutex;
+	inline std::condition_variable g_rec_audio_cv;
+	inline std::atomic<bool> g_rec_audio_waiting{false};
+	inline std::atomic<u64> g_rec_audio_target{0};
+
+	/// SPU2's thread: one block of raw mixed output, interleaved stereo floats in [-1, 1].
+	inline void PushRecAudio(const float* samples, u32 frames)
+	{
+		u64 written = g_rec_audio_written.load(std::memory_order_relaxed);
+		for (u32 i = 0; i < frames; i++)
+		{
+			const u32 at = static_cast<u32>((written + i) & (REC_AUDIO_RING_FRAMES - 1)) * 2;
+			g_rec_audio_ring[at] = static_cast<s16>(std::clamp(samples[i * 2] * 32767.0f, -32768.0f, 32767.0f));
+			g_rec_audio_ring[at + 1] = static_cast<s16>(std::clamp(samples[i * 2 + 1] * 32767.0f, -32768.0f, 32767.0f));
+		}
+		written += frames;
+		g_rec_audio_written.store(written, std::memory_order_seq_cst);
+
+		if (g_rec_audio_waiting.load(std::memory_order_seq_cst) &&
+			written >= g_rec_audio_target.load(std::memory_order_relaxed))
+		{
+			std::lock_guard lock(g_rec_audio_mutex);
+			g_rec_audio_cv.notify_one();
 		}
 	}
 } // namespace GSRemotePlay

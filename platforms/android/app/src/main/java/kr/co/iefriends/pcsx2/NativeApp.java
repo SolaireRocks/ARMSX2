@@ -1130,6 +1130,15 @@ public class NativeApp {
 	public static native String remotePlayUpnpMap(int internalPort, int externalHint, int leaseSeconds);
 	public static native void remotePlayUpnpUnmap(int externalPort);
 
+	// ---- Gameplay recorder & instant replay (cpp/gameplay_recorder.cpp) ----
+	public static native boolean recStart(int maxWidth, int maxHeight, boolean useHardware);
+	public static native void recStop();
+	public static native int recPollVideo(java.nio.ByteBuffer buffer, long[] info, int timeoutMs);
+	public static native void recReleaseFrame(int slot, int seq);
+	public static native void recSetHardware(boolean enabled);
+	public static native int recPollAudio(java.nio.ByteBuffer buffer, int capFrames, int timeoutMs, long[] outPtsUs);
+	public static native boolean recIsPaused();
+
 	/** Persist the Vulkan pipeline cache to disk so cold restarts don't have
 	 *  to recompile every TFX pipeline. No-op for OpenGL (its cache flushes
 	 *  on its own). Called from MainActivityRuntime.onPause so backgrounding the app saves
