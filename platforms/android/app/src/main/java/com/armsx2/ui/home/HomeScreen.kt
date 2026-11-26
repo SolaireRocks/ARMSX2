@@ -764,6 +764,7 @@ fun HomeScreen(
                                     coverWidth = ((if (compact) 84f else 100f) * coverScale).dp,
                                     scroll = true,
                                     selectedIndex = recentSel,
+                                    useFileName = true,
                                     onLaunch = { viewModel.launch(it) },
                                     onDetails = { menuGame = it },
                                     modifier = Modifier.layout { measurable, constraints ->
@@ -2081,7 +2082,12 @@ private fun RecentGameCard(game: GameInfo, selected: Boolean = false, onClick: (
                 .coverFrame(selected, 2.5.dp, Color(0xFF3DA5FF), memcard = showsMemcardCover(game)),
         )
         Spacer(Modifier.height(5.dp))
-        Text(game.displayTitle(EnglishTitles.enabled.value), style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            game.fileName ?: game.displayTitle(EnglishTitles.enabled.value),
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -2589,6 +2595,7 @@ private fun GameShelf(
     // and this shelf row's first global index. -1 = nothing selected on this shelf.
     selectedIndex: Int = -1,
     startIndex: Int = 0,
+    useFileName: Boolean = false,
 ) {
     val coverHeight = coverWidth / 0.7f
     // Slimmer plank to match bagas's slimmer frosted-shelf PNG (2903×200).
@@ -2638,6 +2645,7 @@ private fun GameShelf(
                     ShelfGameCard(
                         game, coverWidth, reflectionHeight,
                         selected = startIndex + index == selectedIndex,
+                        useFileName = useFileName,
                         onLaunch = onLaunch,
                         onDetails = onDetails,
                     )
@@ -2654,7 +2662,7 @@ private fun GameShelf(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 games.forEachIndexed { i, game ->
-                    ShelfGameCard(game, coverWidth, reflectionHeight, selected = startIndex + i == selectedIndex, onLaunch = onLaunch, onDetails = onDetails)
+                    ShelfGameCard(game, coverWidth, reflectionHeight, selected = startIndex + i == selectedIndex, useFileName = useFileName, onLaunch = onLaunch, onDetails = onDetails)
                 }
                 repeat((slotsPerRow - games.size).coerceAtLeast(0)) {
                     Spacer(Modifier.width(coverWidth))
@@ -2665,7 +2673,7 @@ private fun GameShelf(
 }
 
 @Composable
-private fun ShelfGameCard(game: GameInfo, width: Dp, reflectionHeight: Dp, selected: Boolean = false, onLaunch: (GameInfo) -> Unit, onDetails: (GameInfo) -> Unit = {}) {
+private fun ShelfGameCard(game: GameInfo, width: Dp, reflectionHeight: Dp, selected: Boolean = false, useFileName: Boolean = false, onLaunch: (GameInfo) -> Unit, onDetails: (GameInfo) -> Unit = {}) {
     // Long-press opens the game context menu (per-game settings, hide, etc.) — same as the grid /
     // list / recents cards. Without this the shelf layout had no way to reach per-game settings.
     Column(modifier = Modifier.width(width).combinedClickable(onClick = { onLaunch(game) }, onLongClick = { onDetails(game) })) {
@@ -2706,8 +2714,13 @@ private fun ShelfGameCard(game: GameInfo, width: Dp, reflectionHeight: Dp, selec
         // Title under the cover when "Name on grid" is on, and always under Memory Card Covers
         // (see coverNames).
         if (coverNames()) {
+            val label = if (useFileName) {
+                game.fileName ?: game.displayTitle(EnglishTitles.enabled.value)
+            } else {
+                game.displayTitle(EnglishTitles.enabled.value)
+            }
             Text(
-                game.displayTitle(EnglishTitles.enabled.value),
+                label,
                 style = MaterialTheme.typography.labelSmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
